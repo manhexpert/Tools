@@ -6,13 +6,14 @@ $RBCM_log_Path      = "$env:ProgramData\Bosch\RBcm\Logs\packages\"
 $RBCM_cfg_Path      = "$env:ProgramData\Bosch\RBcm\config\"
 $GUIDx64            = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\"
 $GUIDX86            = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\"
-$Source_PackagePath = "\\si0vm1384.de.bosch.com\rbcm$\"
+$Source_PackagePath = "\\rb-sccm-pkg-d.bosch.com\rbcm$\"
 $FingePrint_Path    = "HKLM:\SOFTWARE\BOSCH\RBcm\packages\"
 $PMI                = "HKLM:\SOFTWARE\BOSCH\RBcm\PMI\Client\Environment"
 $Daten              = "$env:SystemDrive\daten\"
 $Active_Setup_HKLM  = "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\"
 $Active_Setup_HKCU  = "HKCU:\SOFTWARE\Microsoft\Active Setup\Installed Components"
 $Registry_Firewall  = "HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules"
+$Archive            = "\\si0vm1384.de.bosch.com\archive$\"
 
 # Create form
 $form = New-Object System.Windows.Forms.Form
@@ -22,6 +23,7 @@ $form.StartPosition = "CenterScreen"
 $form.MaximizeBox = $false
 $form.FormBorderStyle = "FixedSingle"
 $form.Padding = New-Object System.Windows.Forms.Padding(15, 15, 15, 15)
+
 
 # Create label
 $rbcmlabel = New-Object System.Windows.Forms.Label
@@ -70,14 +72,17 @@ Function Create-Button {
 
     return $button
 }
+
+Function RunTaskscheduler ([string]$taskName,[string]$taskPath)
+{
+	Start-Process -FilePath "schtasks.exe" -ArgumentList "/run /tn ""$taskPath\$taskName""" -Verb RunAs	-WindowStyle Hidden
+}
+
 Function CopyData([string]$From,[string]$To)
 {
 # Create check box and scroll
-#$sourceFolder = $From
-#$destinationFolder = $To
-
-$sourceFolder = "C:\Users\NMA9HC\Desktop\CaLiLi_1_05_Manh"
-$destinationFolder = "C:\Users\NMA9HC\Desktop\New folder"
+$sourceFolder = $From
+$destinationFolder = $To
 
 $subFolders = Get-ChildItem -Path $sourceFolder -Directory
 
@@ -142,17 +147,7 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
             $objFolder.CopyHere($sourceSubFolder,16)
         }
     }
-
-
-$form = New-Object System.Windows.Forms.Form
-$screen = [System.Windows.Forms.Screen]::FromControl($form).WorkingArea
-$x = $screen.Left + (($screen.Width - $form.Width) / 2)
-$y = $screen.Top + (($screen.Height - $form.Height) / 2)
-$form.StartPosition = "Manual"
-$form.Location = New-Object System.Drawing.Point($x, $y)
-[System.Windows.Forms.MessageBox]::Show($form, "Folders copied successfully", "Success", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information, [System.Windows.Forms.MessageBoxDefaultButton]::Button1, $form)
-
-
+    explorer "$destinationFolder"
 }
 
 }
@@ -180,7 +175,8 @@ $buttons = @(
     @{ Name = "Source Package"; Value = { OpenFolder -Path "$Source_Package" } },
     @{ Name = "FingePrint"; Value = { OpenRegistry -ResPath $FingePrint } },
     @{ Name = "PMI"; Value = { OpenRegistry -ResPath $PMI } },
-    @{ Name = "Copy to daten"; Value = { CopyData -From $Source_Package -To $Daten} }
+    @{ Name = "Copy to daten"; Value = { CopyData -From $Source_Package -To $Daten} },
+    @{ Name = "Archive"; Value = { OpenFolder -Path "$Archive" } }
     
 )
 $i=0
@@ -203,7 +199,9 @@ $buttons = @(
     @{ Name = "Fire wall"; Value = { OpenRegistry -ResPath $Registry_Firewall } },
     @{ Name = "Env variable"; Value = { Start-Process rundll32 -ArgumentList "sysdm.cpl,EditEnvironmentVariables"} },
     @{ Name = "Smscfgrc"; Value = { cmd /c "control smscfgrc"} },
-    @{ Name = "Task scheduler"; Value = { Start-Process "C:\Windows\System32\taskschd.msc" -Verb RunAs } }, 
+    @{ Name = "Task scheduler"; Value = { Start-Process "$env:windir\System32\taskschd.msc" -Verb RunAs } }, 
+    @{ Name = "Get PMI"; Value = { RunTaskscheduler -taskName "PmiGetConfig" -taskPath "\RBCM" } },
+    @{ Name = "Run RBCM0048"; Value = { RunTaskscheduler -taskName "install_always" -taskPath "\RBCM\RBCM0048"} },
     @{ Name = "Control panel"; Value = { control appwiz.cpl} },
     @{ Name = "Security policy"; Value = { Start-Process "C:\Windows\System32\secpol.msc" -Verb RunAs} }
 )
@@ -222,3 +220,4 @@ foreach ($button in $buttons)
 
 # Show form
 $form.ShowDialog() | Out-Null
+Start-Process "C:\ProgramData\Bosch\RBcm\PMI\PMIGetConfig.exe" -ArgumentList "/v"
